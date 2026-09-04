@@ -1,11 +1,11 @@
 // ==UserScript==
 // @name         吾爱只看回帖正文
-// @namespace    http://tampermonkey.net/
+// @namespace    https://github.com/dexzhou/52pojie/blob/main/%E5%8F%AA%E7%9C%8B%E5%9B%9E%E5%B8%96%E6%AD%A3%E6%96%87
 // @version      2.9
 // @description  只显示回帖内容，隐藏其它元素。
 // @author       dex
 // @match        https://www.52pojie.cn/*
-// @grant        GM_addStyle
+// @grant        none
 // @license AGPL-3.0-or-later
 // ==/UserScript==
  
