@@ -1,0 +1,257 @@
+// ==UserScript==
+// @name         吾爱只看回帖正文
+// @namespace    http://tampermonkey.net/
+// @version      2.9
+// @description  只显示回帖内容，隐藏其它元素。
+// @author       dex
+// @match        https://www.52pojie.cn/*
+// @grant        GM_addStyle
+// @license AGPL-3.0-or-later
+// ==/UserScript==
+ 
+(function() {
+    'use strict';
+ 
+    const styleAll = `
+#toggleMaskBtn{
+    position: fixed;
+    right:16px;
+    top:50%;
+    transform: translateY(-50%);
+    z-index:99999;
+    padding:10px 14px;
+    background:#ff8800;
+    color:#fff;
+    border:none;
+    border-radius:8px;
+    cursor:move;
+    box-shadow:0 2px 10px #00000040;
+    user-select:none;
+    font-size:28px;
+}
+#toggleMaskBtn:active{
+    background:#e67a00;
+}
+#my_extract_msg_box{
+    margin:12px auto;
+    max-width:800px;
+    width:100%;
+    border:1px solid black;
+    padding:10px;
+    box-sizing:border-box;
+}
+#my_extract_msg_box .msg-item-wrap{
+    display:flex;
+    gap:10px;
+    align-items:flex-start;
+    padding:8px 0;
+    border-bottom:1px solid #eee;
+}
+#my_extract_msg_box .circle-num{
+    flex-shrink:0;
+    width:32px;
+    height:32px;
+    border-radius:50%;
+    background:#d82626;
+    color:#ffffff;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    font-size:16px;
+    font-weight:bold;
+}
+#my_extract_msg_box .msg-content{
+    flex:1;
+    font-size:14px;
+    line-height:1.6;
+    display: flow-root;
+}
+#my_extract_msg_box .msg-content img{
+    max-width:380px;
+    width:auto;
+    height:auto;
+    display:inline-block;
+    vertical-align:top;
+    margin:4px;
+}
+`;
+ 
+    GM_addStyle(styleAll);
+ 
+    let mainPostImgStyle = null;
+    const btn = document.createElement('button');
+    btn.id = "toggleMaskBtn";
+    btn.innerText = "隐藏其它内容";
+    document.body.appendChild(btn);
+ 
+    let isHideOther = false;
+    let msgBox = null;
+    let originalDisplay = new Map();
+ 
+    function getSavedMode(){
+        return localStorage.getItem("52pojie_simple_mode") === "1";
+    }
+    function setSavedMode(val){
+        if(val){
+            localStorage.setItem("52pojie_simple_mode","1");
+        }else{
+            localStorage.removeItem("52pojie_simple_mode");
+        }
+    }
+ 
+    function getPageNum(){
+        const params = new URLSearchParams(window.location.search);
+        const p = params.get("page");
+        const num = parseInt(p,10);
+        return Number.isNaN(num) ? 1 : num;
+    }
+ 
+    /**
+     * @param {boolean} needScroll true=手动点击滚动 false=自动加载不滚动
+     * @returns {boolean} 是否执行成功
+     */
+    function enterSimpleMode(needScroll){
+        const postList = document.querySelector("#postlist");
+        if(!postList){
+            return false;
+        }
+        const postDivArr = Array.from(postList.querySelectorAll('div[id^="post_"]'));
+        if(postDivArr.length === 0){
+            return false;
+        }
+ 
+        const page = getPageNum();
+        const skipIndex = page === 1 ? 0 : -1;
+ 
+        if(msgBox) msgBox.remove();
+        msgBox = document.createElement('div');
+        msgBox.id = "my_extract_msg_box";
+ 
+        let insertAfterEl;
+        if(skipIndex === 0){
+            insertAfterEl = postDivArr[0];
+            if(!mainPostImgStyle){
+                mainPostImgStyle = document.createElement('style');
+                mainPostImgStyle.textContent = `
+                    #postlist > div[id^="post_"]:first-of-type img {
+                        max-width:380px !important;
+                        width:auto !important;
+                        height:auto !important;
+                    }
+                `;
+                document.head.appendChild(mainPostImgStyle);
+            }
+        }else{
+            insertAfterEl = postList.children[0];
+        }
+        insertAfterEl.after(msgBox);
+ 
+        originalDisplay.clear();
+        let index = 1;
+        const startI = skipIndex ===0 ? 1 :0;
+        for(let i = startI; i < postDivArr.length; i++){
+            const div = postDivArr[i];
+            originalDisplay.set(div, div.style.display||"");
+            div.style.display = "none";
+            const msgEl = div.querySelector('[id*="postmessage_"]');
+            if(msgEl){
+                const htmlContent = msgEl.innerHTML.trim();
+                if(htmlContent){
+                    const wrap = document.createElement("div");
+                    wrap.className = "msg-item-wrap";
+                    const numSpan = document.createElement("span");
+                    numSpan.className = "circle-num";
+                    numSpan.textContent = String(index);
+                    index++;
+                    const contentDiv = document.createElement("div");
+                    contentDiv.className = "msg-content";
+                    contentDiv.innerHTML = htmlContent;
+                    wrap.appendChild(numSpan);
+                    wrap.appendChild(contentDiv);
+                    msgBox.appendChild(wrap);
+                }
+            }
+        }
+ 
+        // ✅重要：自动执行的时候也要同步状态，更新按钮文字
+        btn.innerText = "显示其它内容";
+        isHideOther = true;
+        setSavedMode(true);
+ 
+        if(needScroll && msgBox){
+            msgBox.scrollIntoView({behavior:"smooth", block:"start"});
+        }
+        return true;
+    }
+ 
+    function exitSimpleMode(){
+        if(msgBox){
+            msgBox.remove();
+            msgBox = null;
+        }
+        if(mainPostImgStyle){
+            mainPostImgStyle.remove();
+            mainPostImgStyle = null;
+        }
+        originalDisplay.forEach((val,el)=>{
+            el.style.display = val;
+        });
+        btn.innerText = "隐藏其它内容";
+        isHideOther = false;
+        setSavedMode(false);
+    }
+ 
+    function toggleView(){
+        if(isHideOther){
+            exitSimpleMode();
+        }else{
+            enterSimpleMode(true);
+        }
+    }
+    btn.addEventListener('click', toggleView);
+ 
+    // 拖拽逻辑
+    let draging = false;
+    let offsetX, offsetY;
+    btn.addEventListener('mousedown',(e)=>{
+        draging = true;
+        offsetX = e.clientX - btn.getBoundingClientRect().left;
+        offsetY = e.clientY - btn.getBoundingClientRect().top;
+        e.preventDefault();
+    });
+    document.addEventListener('mousemove',(e)=>{
+        if(!draging) return;
+        let x = e.clientX - offsetX;
+        let y = e.clientY - offsetY;
+        const maxX = window.innerWidth - btn.offsetWidth;
+        const maxY = window.innerHeight - btn.offsetHeight;
+        x = Math.max(0, Math.min(x, maxX));
+        y = Math.max(0, Math.min(y, maxY));
+        btn.style.left = x + "px";
+        btn.style.top = y + "px";
+        btn.style.transform = "none";
+    });
+    document.addEventListener('mouseup',()=>{
+        draging = false;
+    });
+ 
+    // ==========无限轮询，直到找到#postlist，最多30次，间隔450ms ==========
+    let pollCount = 0;
+    function pollPostlist(){
+        pollCount++;
+        const postList = document.querySelector("#postlist");
+        if(postList){
+            if(getSavedMode()){
+                enterSimpleMode(false);
+            }
+            return;
+        }
+        if(pollCount < 30){
+            setTimeout(pollPostlist,450);
+        }
+    }
+ 
+    // 直接启动轮询，不再依赖DOMContentLoaded事件，规避事件时序问题
+    pollPostlist();
+ 
+})();
