@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         吾爱代码块代码块折叠按钮
+// @name         吾爱代码块-折叠按钮
 // @namespace    wuai_copy
 // @version      0.1.0
 // @description  吾爱代码块隐藏/显示切换+md复制按钮支持
