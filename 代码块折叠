@@ -6,6 +6,7 @@
 // @author       涛之雨
 // @match        https://www.52pojie.cn/*
 // @grant	     none
+// @license AGPL-3.0-or-later
 // @note         吾爱代码块隐藏/显示切换+md复制按钮支持，在 涛之雨 版本用豆包改的。
 // @icon         https://www.52pojie.cn/favicon.ico
 // @home         https://greasyfork.org/zh-CN/scripts/416512
